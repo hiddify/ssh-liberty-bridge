@@ -176,6 +176,7 @@ func main() {
 	var userConnectionCountMutex sync.Mutex
 	server := ssh.Server{
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, dhost string, dport uint32) bool {
+			log.Printf("requesting %s", dhost)
 			ip := net.ParseIP(dhost)
 			if ip == nil {
 				return false
@@ -188,7 +189,7 @@ func main() {
 			"direct-tcpip": directTCPIPClosure(rdb),
 		},
 		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			//log.Printf("User %s with key %s", ctx.User(), gossh.MarshalAuthorizedKey(key))
+			log.Printf("User %s with key %s", ctx.User(), gossh.MarshalAuthorizedKey(key))
 			if len(ctx.User()) != 36 { // it isn't a UUID
 				return false
 			}
@@ -198,6 +199,7 @@ func main() {
 			result := rdb.SIsMember(ctx, "ssh-server:users", userString)
 			res, err := result.Result()
 			doneCh := ctx.Done()
+		        log.Printf("User %s with key %s err %s res %s", ctx.User(), gossh.MarshalAuthorizedKey(key),res,err)			
 			if err != nil || !res || doneCh == nil {
 				return false
 			}
