@@ -189,7 +189,7 @@ func main() {
 			"direct-tcpip": directTCPIPClosure(rdb),
 		},
 		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			log.Printf("User %s with key %s", ctx.User(), gossh.MarshalAuthorizedKey(key))
+			log.Printf("User -%s- with key -%s-", ctx.User(), string(gossh.MarshalAuthorizedKey(key)))
 			if len(ctx.User()) != 36 { // it isn't a UUID
 				return false
 			}
@@ -199,7 +199,7 @@ func main() {
 			result := rdb.SIsMember(ctx, "ssh-server:users", userString)
 			res, err := result.Result()
 			doneCh := ctx.Done()
-		        log.Printf("User %s with key %s err %s res %s", ctx.User(), gossh.MarshalAuthorizedKey(key),res,err)			
+		        log.Printf("UserString -%s- err -%s- res -%s-", userString,res,err)			
 			if err != nil || !res || doneCh == nil {
 				return false
 			}
