@@ -17,7 +17,10 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/net/proxy"
 )
+
+var SocksProxyAddr string
 
 type localForwardChannelData struct {
 	DestAddr string
@@ -67,10 +70,25 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 		dest = net.JoinHostPort(dest, strconv.FormatInt(int64(d.DestPort), 10))
 
 		var dialer net.Dialer
-		dconn, err := dialer.DialContext(ctx, "tcp", dest)
-		if err != nil {
-			newChan.Reject(gossh.ConnectionFailed, err.Error())
-			return
+		var dconn net.Conn
+
+		if len(SocksProxyAddr) != 0 {
+			pDialer, err := proxy.SOCKS5("tcp", SocksProxyAddr, nil, proxy.Direct)
+			if err != nil {
+				newChan.Reject(gossh.ConnectionFailed, err.Error())
+				return
+			}
+			dconn, err = pDialer.Dial("tcp", dest)
+			if err != nil {
+				newChan.Reject(gossh.ConnectionFailed, err.Error())
+				return
+			}
+		} else {
+			dconn, err = dialer.DialContext(ctx, "tcp", dest)
+			if err != nil {
+				newChan.Reject(gossh.ConnectionFailed, err.Error())
+				return
+			}
 		}
 
 		ch, reqs, err := newChan.Accept()
@@ -116,6 +134,30 @@ func parseHostKeyFile(keyFile string) (ssh.Signer, error) {
 	return key, nil
 }
 
+func extractNumbers(input string) ([]uint32, error) {
+	elements := strings.Split(input, ",")
+	numbers := make([]uint32, 0)
+
+	for _, element := range elements {
+		num, err := strconv.ParseUint(strings.TrimSpace(element), 10, 30) // limit to 30 bits just to be on the safe side
+		if err != nil {
+			return nil, err
+		}
+		numbers = append(numbers, uint32(num))
+	}
+
+	return numbers, nil
+}
+
+func containsNumber(list []uint32, number uint32) bool {
+	for _, v := range list {
+		if v == number {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	var err error
 	if len(os.Args) == 2 {
@@ -135,6 +177,14 @@ func main() {
 	listenAddr := os.Getenv("LISTEN_ADDR")
 	if len(listenAddr) == 0 {
 		listenAddr = ":2222"
+	}
+
+	SocksProxyAddr = os.Getenv("SOCKS_PROXY")
+	whitelistString := os.Getenv("WHITELIST_PORTS")
+	whitelistPorts, err := extractNumbers(whitelistString)
+
+	if err != nil {
+		log.Fatalln("Invalid WHITELIST_PORTS")
 	}
 
 	hostKeyPath := os.Getenv("HOST_KEY_PATH")
@@ -180,6 +230,9 @@ func main() {
 			ip := net.ParseIP(dhost)
 			if ip == nil {
 				return false
+			}
+			if ip.IsLoopback() && containsNumber(whitelistPorts, dport) {
+				return true
 			}
 			result := ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
 			return !result
