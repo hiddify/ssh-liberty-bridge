@@ -229,7 +229,7 @@ func main() {
 	var userConnectionCountMutex sync.Mutex
 	server := ssh.Server{
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, dhost string, dport uint32) bool {
-			log.Printf("requesting %s", dhost)
+			//log.Printf("requesting %s", dhost)
 			ip := net.ParseIP(dhost)
 			if ip == nil {
 				return false
@@ -245,7 +245,7 @@ func main() {
 			"direct-tcpip": directTCPIPClosure(rdb),
 		},
 		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			log.Printf("User -%s- with key -%s-", ctx.User(), string(gossh.MarshalAuthorizedKey(key)))
+			//log.Printf("User -%s- with key -%s-", ctx.User(), string(gossh.MarshalAuthorizedKey(key)))
 			if len(ctx.User()) != 36 { // it isn't a UUID
 				return false
 			}
@@ -255,9 +255,9 @@ func main() {
 			result := rdb.SIsMember(ctx, "ssh-server:users", userString)
 			res, err := result.Result()
 			doneCh := ctx.Done()
-		        log.Printf("UserString -%s- res -%s- err -%s-", userString,res,err)			
+		        //log.Printf("UserString -%s- res -%s- err -%s-", userString,res,err)			
 			if err != nil || !res || doneCh == nil {
-				log.Printf("returning false 1")			
+				//log.Printf("returning false 1")			
 				return false
 			}
 			userConnectionCountMutex.Lock()
@@ -268,21 +268,21 @@ func main() {
 			connCntStr, _ := hget_res.Result()
 			connCnt, err2 := strconv.ParseInt(connCntStr, 10, 32)
 			if err2 == nil && connCnt >= maxConns {
-				log.Printf("returning false 2")		
-				log.Printf("Client %s trying to have more than %d connections\n", userString, maxConns)
+				//log.Printf("returning false 2")		
+				//log.Printf("Client %s trying to have more than %d connections\n", userString, maxConns)
 				return false // No duplicate connections
 			}
 			hincr_res := rdb.HIncrBy(ctx, "ssh-server:connections", userId, 1)
 			if hincr_res.Err() != nil {
-				log.Printf("returning false 3 %s",hincr_res.Err())			
+				//log.Printf("returning false 3 %s",hincr_res.Err())			
 				return false
 			}
 			go func() {
 				<-doneCh
-				log.Printf("4---",userId)			
+				//log.Printf("4---",userId)			
 				rdb.HIncrBy(context.Background(), "ssh-server:connections", userId, -1)
 			}()
-			log.Printf("returning true ")			
+			//log.Printf("returning true ")			
 			return true
 		},
 		IdleTimeout: time.Minute * 1,
