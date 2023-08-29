@@ -61,18 +61,18 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 		}
 
 		dest := ipAddr.String()
-
+		
 		if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, dest, d.DestPort) {
 			newChan.Reject(gossh.Prohibited, "illegal address")
 			return
 		}
-
+		force_direct := srv.LocalPortForwardingCallback != nil && srv.LocalPortForwardingCallback(ctx, dest, d.DestPort)
 		dest = net.JoinHostPort(dest, strconv.FormatInt(int64(d.DestPort), 10))
 
 		var dialer net.Dialer
 		var dconn net.Conn
 
-		if len(SocksProxyAddr) != 0 {
+		if len(SocksProxyAddr) != 0 && !force_direct {
 			pDialer, err := proxy.SOCKS5("tcp", SocksProxyAddr, nil, proxy.Direct)
 			if err != nil {
 				newChan.Reject(gossh.ConnectionFailed, err.Error())
