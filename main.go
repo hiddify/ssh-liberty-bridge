@@ -61,18 +61,19 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 		}
 
 		dest := ipAddr.String()
-		
+
 		if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, dest, d.DestPort) {
 			newChan.Reject(gossh.Prohibited, "illegal address")
 			return
 		}
-		force_direct := srv.LocalPortForwardingCallback != nil && srv.LocalPortForwardingCallback(ctx, dest, d.DestPort)
+		// Shouldn't use proxy if the destination ip is local
+		force_direct := srv.LocalPortForwardingCallback != nil && !srv.LocalPortForwardingCallback(ctx, dest, d.DestPort)
 		dest = net.JoinHostPort(dest, strconv.FormatInt(int64(d.DestPort), 10))
 
 		var dialer net.Dialer
 		var dconn net.Conn
 
-		if len(SocksProxyAddr) != 0 && !force_direct {
+		if len(SocksProxyAddr) != 0 && force_direct {
 			pDialer, err := proxy.SOCKS5("tcp", SocksProxyAddr, nil, proxy.Direct)
 			if err != nil {
 				newChan.Reject(gossh.ConnectionFailed, err.Error())
@@ -255,9 +256,9 @@ func main() {
 			result := rdb.SIsMember(ctx, "ssh-server:users", userString)
 			res, err := result.Result()
 			doneCh := ctx.Done()
-		        //log.Printf("UserString -%s- res -%s- err -%s-", userString,res,err)			
+			//log.Printf("UserString -%s- res -%s- err -%s-", userString,res,err)
 			if err != nil || !res || doneCh == nil {
-				//log.Printf("returning false 1")			
+				//log.Printf("returning false 1")
 				return false
 			}
 			userConnectionCountMutex.Lock()
@@ -268,21 +269,21 @@ func main() {
 			connCntStr, _ := hget_res.Result()
 			connCnt, err2 := strconv.ParseInt(connCntStr, 10, 32)
 			if err2 == nil && connCnt >= maxConns {
-				//log.Printf("returning false 2")		
+				//log.Printf("returning false 2")
 				//log.Printf("Client %s trying to have more than %d connections\n", userString, maxConns)
 				return false // No duplicate connections
 			}
 			hincr_res := rdb.HIncrBy(ctx, "ssh-server:connections", userId, 1)
 			if hincr_res.Err() != nil {
-				//log.Printf("returning false 3 %s",hincr_res.Err())			
+				//log.Printf("returning false 3 %s",hincr_res.Err())
 				return false
 			}
 			go func() {
 				<-doneCh
-				//log.Printf("4---",userId)			
+				//log.Printf("4---",userId)
 				rdb.HIncrBy(context.Background(), "ssh-server:connections", userId, -1)
 			}()
-			//log.Printf("returning true ")			
+			//log.Printf("returning true ")
 			return true
 		},
 		IdleTimeout: time.Minute * 1,
