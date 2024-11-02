@@ -22,6 +22,10 @@ SERVER_PORT=2222
 # Must have trailing slash
 HOST_KEY_PATH="/etc/ssh-liberty-bridge/"
 
+HOST_KEY_1="base64 key of rsa,dsa,..."
+HOST_KEY_2="base64 key of rsa,dsa,..."
+HOST_KEY_3="base64 key of rsa,dsa,..."
+HOST_KEY_4="base64 key of rsa,dsa,..."
 # User configuration template file.
 # The following variables will be substituted:
 # $server_addr

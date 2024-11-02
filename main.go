@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -116,6 +118,42 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 	}
 }
 
+func getAllEnvHostKeys() ([]gossh.Signer, error) {
+	// Create a slice to store the parsed private keys
+	keys := []gossh.Signer{}
+
+	// Loop through each key from HOST_KEY_1 to HOST_KEY_4
+	for i := 1; i <= 4; i++ {
+		// Construct the environment variable name
+		envVar := fmt.Sprintf("HOST_KEY_%d", i)
+
+		// Get the Base64 encoded value from the environment
+		base64Encoded := os.Getenv(envVar)
+		if base64Encoded == "" {
+			log.Printf("Environment variable %s is not set", envVar)
+			continue
+		}
+
+		// Decode the Base64 encoded value
+		decoded, err := base64.StdEncoding.DecodeString(base64Encoded)
+		if err != nil {
+			log.Printf("Failed to decode %s: %v", envVar, err)
+			continue
+		}
+
+		// Parse the decoded private key
+		key, err := gossh.ParsePrivateKey(decoded)
+		if err != nil {
+			log.Printf("Failed to parse private key from %s: %v", envVar, err)
+			continue
+		}
+
+		// Append the parsed key to the slice
+		keys = append(keys, key)
+	}
+
+	return keys, nil
+}
 func parseHostKeyFile(keyFile string) (ssh.Signer, error) {
 	file, err := os.Open(keyFile)
 	if err != nil {
@@ -348,6 +386,13 @@ func main() {
 			log.Fatalf("Failed to parse host key file %s: %v", keyFile, err)
 		}
 
+		server.AddHostKey(hostKey)
+	}
+	envkeys, err := getAllEnvHostKeys()
+	if err != nil {
+		log.Fatalf("Failed to parse end keys  %v", err)
+	}
+	for _, hostKey := range envkeys {
 		server.AddHostKey(hostKey)
 	}
 
