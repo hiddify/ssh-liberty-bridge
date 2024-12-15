@@ -45,7 +45,7 @@ func listKeys(dirPath string) (result []string, err error) {
 	return
 }
 
-func isLocalIP(dhost string) bool{
+func isLocalIP(dhost string) bool {
 	ip := net.ParseIP(dhost)
 	if ip == nil {
 		return false
@@ -70,19 +70,19 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 			}
 		}
 
-		dest := ipAddr.String()
+		udest := ipAddr.String()
 
-		if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, dest, d.DestPort) {
+		if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, udest, d.DestPort) {
 			newChan.Reject(gossh.Prohibited, "illegal address")
 			return
 		}
-		
-		dest = net.JoinHostPort(dest, strconv.FormatInt(int64(d.DestPort), 10))
+
+		dest := net.JoinHostPort(udest, strconv.FormatInt(int64(d.DestPort), 10))
 
 		var dialer net.Dialer
 		var dconn net.Conn
 
-		if len(SocksProxyAddr) != 0 && !isLocalIP(dest) {
+		if len(SocksProxyAddr) != 0 && !isLocalIP(udest) {
 			pDialer, err := proxy.SOCKS5("tcp", SocksProxyAddr, nil, proxy.Direct)
 			if err != nil {
 				newChan.Reject(gossh.ConnectionFailed, err.Error())
@@ -276,7 +276,9 @@ func main() {
 	server := ssh.Server{
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, dhost string, dport uint32) bool {
 			//log.Printf("requesting %s", dhost)
-			if !isLocalIP(dhost){return true}
+			if !isLocalIP(dhost) {
+				return true
+			}
 			if containsNumber(whitelistPorts, dport) {
 				return true
 			}
