@@ -45,7 +45,7 @@ func listKeys(dirPath string) (result []string, err error) {
 	return
 }
 
-func isLocalIP(dhost string){
+func isLocalIP(dhost string) bool{
 	ip := net.ParseIP(dhost)
 	if ip == nil {
 		return false
