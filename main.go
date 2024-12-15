@@ -45,6 +45,14 @@ func listKeys(dirPath string) (result []string, err error) {
 	return
 }
 
+func isLocalIP(dhost string){
+	ip := net.ParseIP(dhost)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
+}
+
 func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 	return func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 		d := localForwardChannelData{}
@@ -68,14 +76,13 @@ func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
 			newChan.Reject(gossh.Prohibited, "illegal address")
 			return
 		}
-		// Shouldn't use proxy if the destination ip is local
-		force_direct := srv.LocalPortForwardingCallback != nil && !srv.LocalPortForwardingCallback(ctx, dest, d.DestPort)
+		
 		dest = net.JoinHostPort(dest, strconv.FormatInt(int64(d.DestPort), 10))
 
 		var dialer net.Dialer
 		var dconn net.Conn
 
-		if len(SocksProxyAddr) != 0 && force_direct {
+		if len(SocksProxyAddr) != 0 && !isLocalIP(dest) {
 			pDialer, err := proxy.SOCKS5("tcp", SocksProxyAddr, nil, proxy.Direct)
 			if err != nil {
 				newChan.Reject(gossh.ConnectionFailed, err.Error())
@@ -269,15 +276,11 @@ func main() {
 	server := ssh.Server{
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, dhost string, dport uint32) bool {
 			//log.Printf("requesting %s", dhost)
-			ip := net.ParseIP(dhost)
-			if ip == nil {
-				return false
-			}
-			if ip.IsLoopback() && containsNumber(whitelistPorts, dport) {
+			if !isLocalIP(dhost){return true}
+			if containsNumber(whitelistPorts, dport) {
 				return true
 			}
-			result := ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
-			return !result
+			return false
 		}),
 		Addr: listenAddr,
 		ChannelHandlers: map[string]ssh.ChannelHandler{
