@@ -50,7 +50,7 @@ func isLocalIP(dhost string) bool {
 	if ip == nil {
 		return false
 	}
-	return ip.IsLoopback() || ip.IsLinkLocalMulticast() || ip.IsLinkLocalUnicast() || ip.IsPrivate()
+	return ip.IsLoopback() || ip.IsPrivate()
 }
 
 func directTCPIPClosure(rdb *redis.Client) ssh.ChannelHandler {
